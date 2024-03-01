@@ -43,8 +43,8 @@ func (s Slot) getSize() int {
 		binary.Size(s.DataSize)
 }
 
-func (h Header) getByteArray() []byte {
-	b := make([]byte, h.getSize())
+func (h *Header) getByteArray() []byte {
+	b := make([]byte, pageHeaderSize)
 	//x := make([]byte, 0)
 	//return fmt.Append(b, h.TotalItems, binary.LittleEndian.AppendUint16(x, h.FreeOffsetStart), binary.LittleEndian.AppendUint16(x, h.FreeOffsetEnd))
 	//return fmt.Append(b, h.TotalItems, binary.LittleEndian.AppendUint16(binary.LittleEndian.AppendUint16(x, h.FreeOffsetStart), h.FreeOffsetEnd))
@@ -77,7 +77,7 @@ func getPageHeaderBytes(file *os.File, pageId uint16) ([]byte, error) {
 	var h Header
 	h.TotalItems = headerBytes[0]
 	h.FreeOffsetStart = binary.BigEndian.Uint16(headerBytes[1:3])
-	h.FreeOffsetEnd = binary.BigEndian.Uint16(headerBytes[1:3])
+	h.FreeOffsetEnd = binary.BigEndian.Uint16(headerBytes[3:5])
 	return headerBytes, err
 }
 
@@ -125,24 +125,20 @@ func createNewPageContent() PageInfo {
 }
 
 func createNewPageContentUpdatePageInfoPtr(pi *PageInfo) {
-	pagebytes := make([]byte, defaultPageSize)
-	var h Header = getDefaultPageHeader()
-	copy(pagebytes, h.getByteArray())
-	//pi := PageInfo{PageHeader: &h, Slots: h.getSlotInfo(pagebytes)}
 	pi.PageHeader.TotalItems = 0
 	pi.PageHeader.FreeOffsetStart = uint16(pageHeaderSize)
 	pi.PageHeader.FreeOffsetEnd = defaultPageSize
-	return
+	pi.Slots = []*Slot{} //empty slot
 }
 
 // only when slotInfoSize+dataSize < PageFreeSpace, data item can be written in the page else no create new page
-func (p PageInfo) calculatePageFreeSpace() int {
+func (p *PageInfo) calculatePageFreeSpace() int {
 	return int(p.PageHeader.FreeOffsetEnd) - int(pageHeaderSize) - int(p.PageHeader.TotalItems)*int(slotInfoSize)
 }
 
 func writeNewItemToPage(file *os.File, fh *fileHeaderMetadata, pi *PageInfo, item []byte) (int, error) {
 	log.Printf("File Name to writeItem: %s\n", file.Name())
-	log.Println(fh)
+	//log.Println(fh)
 	lastPageId := fh.totalpages //pageid
 	var pageOffsetInFile int64
 	var sl Slot
@@ -150,12 +146,12 @@ func writeNewItemToPage(file *os.File, fh *fileHeaderMetadata, pi *PageInfo, ite
 	//var newPageOffset uint16
 
 	//check for free space for the record lastPageId=0 no pages present
-	log.Println(pi.calculatePageFreeSpace())
+	//log.Println(pi.calculatePageFreeSpace())
 	if lastPageId != 0 && pi.calculatePageFreeSpace() > len(item)+int(slotInfoSize) {
-		log.Println("Enough space available")
-		pageOffsetInFile = int64(uint16(fileHeaderSize) + ((lastPageId - 1) * defaultPageSize)) //firstpage starts at just after fileheader
+		//log.Println("Enough space available")
+		pageOffsetInFile = int64(fileHeaderSize) + ((int64(lastPageId) - 1) * int64(defaultPageSize)) //firstpage starts at just after fileheader
 	} else {
-		log.Println("Not Enough space available...Save changes & Create new Page")
+		//log.Println("Not Enough space available...Save changes & Create new Page")
 		file.Sync()
 		//pi = createNewPageContent()
 		createNewPageContentUpdatePageInfoPtr(pi)
@@ -163,8 +159,8 @@ func writeNewItemToPage(file *os.File, fh *fileHeaderMetadata, pi *PageInfo, ite
 		pageOffsetInFile = fs.Size()
 		fh.totalpages += 1 //increment new page counter in header
 	}
-	log.Printf("PageOffsetInFile: %d\n", pageOffsetInFile)
-	log.Println("PageInfo:", pi.PageHeader)
+	//log.Printf("PageOffsetInFile: %d\n", pageOffsetInFile)
+	//log.Println("PageInfo:", pi.PageHeader)
 	currStartOffset := pi.PageHeader.FreeOffsetStart
 	pi.PageHeader.TotalItems += 1
 	pi.PageHeader.FreeOffsetStart += uint16(slotInfoSize)
@@ -181,8 +177,8 @@ func writeNewItemToPage(file *os.File, fh *fileHeaderMetadata, pi *PageInfo, ite
 	pi.Slots = append(pi.Slots, &sl)
 	//ph = Header{TotalItems: pi.PageHeader.TotalItems + 1, FreeOffsetStart: pi.PageHeader.FreeOffsetStart + uint16(slotInfoSize), FreeOffsetEnd: newPageOffset}
 
-	log.Println("ph:", pi.PageHeader)
-	log.Println("sl:", sl)
+	//log.Println("ph:", pi.PageHeader)
+	//log.Println("sl:", sl)
 	/*file.WriteAt(item, pageOffsetInFile+int64(newPageOffset))
 	file.WriteAt(sl.getByteArrayWithOutItem(), pageOffsetInFile+int64(pi.PageHeader.FreeOffsetStart))
 	file.WriteAt(ph.getByteArray(), pageOffsetInFile+0)*/
@@ -192,9 +188,13 @@ func writeNewItemToPage(file *os.File, fh *fileHeaderMetadata, pi *PageInfo, ite
 
 	//update the file header metadata
 	fh.totalrows += 1 //increment totalrows
-	log.Println(fh)
 	bw, _ := file.WriteAt(fh.getFileHeaderBytes(), 0)
-	log.Println(bw)
+	bw += 0
+	log.Println("pageOffsetInFile:", pageOffsetInFile)
+	log.Println("fh:", fh)
+	log.Println("ph:", pi.PageHeader)
+	log.Println("slots:", len(pi.Slots))
+	log.Println("slot:", pi.Slots[len(pi.Slots)-1])
 
 	//push changes to disk
 	//file.Sync()

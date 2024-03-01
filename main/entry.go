@@ -13,7 +13,7 @@ func main() {
 	//log.Printf("File Present:%d\n", fm.FilePresent("test.hex"))
 	var i uint32 = 89
 	m := make(map[uint32][]byte)
-	for i = 0; i < 10000; i++ {
+	for i = 0; i < 2000; i++ {
 		log.Println("------------------------------------------")
 		//fm.WriteDataToFile("test.hex", convertKVtoByte(i+1, "{key:"+fmt.Sprint(i+1)+",value:\"Vishwanath-Test-"+fmt.Sprint(i+1)+"\"}"))
 		m[i] = convertKVtoByte(i+1, "{key:"+fmt.Sprint(i+1)+",value:\"Vishwanath-Test-"+fmt.Sprint(i+1)+"\"}")
@@ -29,6 +29,14 @@ func main() {
 	defer f.Close()
 	log.Println(fh)
 	//fm.WriteDataToFile("test.hex", convertKVtoByte(i+1, "{key:"+fmt.Sprint(i+1)+",value:\"Vishwanath-Test-"+fmt.Sprint(i+1)+"\"}"))
+	phb := make([]byte, 5)
+	for i := 0; i < int(fh.GetTotalPages()); i++ {
+		f.ReadAt(phb, int64(6+(i*4096)))
+		log.Printf("PageId:%d	PageTotalRows:%d			PageFreeStOffset:%d		PageFreeEndOffset:%d\n", i, uint8(phb[0]), binary.BigEndian.Uint16(phb[1:3]), binary.BigEndian.Uint16(phb[3:5]))
+	}
+	//pb := make([]byte, 4096)
+	//f.ReadAt(pb, 6+(16*4096))
+	//log.Printf("%x\n", pb)
 
 }
 

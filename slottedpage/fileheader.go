@@ -25,3 +25,7 @@ func (fhm fileHeaderMetadata) getFileHeaderBytes() []byte {
 	log.Printf("FileHeaderBytes:%b\n", b)
 	return b
 }
+
+func (fhm fileHeaderMetadata) GetTotalPages() uint16 {
+	return fhm.totalpages
+}
